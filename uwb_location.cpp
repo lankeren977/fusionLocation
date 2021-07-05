@@ -1,60 +1,71 @@
 #include "uwb_location.h"
 #include "load_config.h"
 
+int ANCHOR_NUM;
+int ANCHOR_DIS_START;
+int MAX_BUFF_SIZE;
+
 vec2d last_result;
-vec2d anchorArray[ANCHOR_NUM];
 
 void loadUWBParams()
 {
-    anchorArray[0].x = getParam("anchor0X");
-    anchorArray[0].y = getParam("anchor0Y");
-    anchorArray[1].x = getParam("anchor1X");
-    anchorArray[1].y = getParam("anchor1Y");
-    anchorArray[2].x = getParam("anchor2X");
-    anchorArray[2].y = getParam("anchor2Y");
+    ANCHOR_NUM = getParam("ANCHOR_NUM");
+    ANCHOR_DIS_START = getParam("ANCHOR_DIS_START");
+    MAX_BUFF_SIZE = getParam("MAX_BUFF_SIZE");
 }
 
 //多球交汇原理
-vec2d trilateration(const int *radius, const int count)
+vec2d trilateration(const int *ids, const int *radius)
 {
     vec2d result;
+    int count = 0;
     //初始化圆
-    Lcircle circle1, circle2, circle3;
-    circle1.x = anchorArray[0].x;
-    circle1.y = anchorArray[0].y;
-    circle1.r = radius[0];
-
-    circle2.x = anchorArray[1].x;
-    circle2.y = anchorArray[1].y;
-    circle2.r = radius[1];
-
-    circle3.x = anchorArray[2].x;
-    circle3.y = anchorArray[2].y;
-    circle3.r = radius[2];
-
-    if (count == 3) //一次三角质心
+    vector<Lcircle> circles;
+    map<int, double *>::iterator iter;
+    for (int i = 0; i < ANCHOR_NUM; i++)
     {
-        vector<vec2d> insect1 = insect(circle1, circle2);
-        vector<vec2d> insect2 = insect(circle1, circle3);
-        vector<vec2d> insect3 = insect(circle2, circle3);
+        iter = globalAnchors.find(ids[i]);
+        if (iter != globalAnchors.end() && 0 != radius[i])
+        {
+            Lcircle circle;
+            circle.x = iter->second[0];
+            circle.y = iter->second[1];
+            circle.r = radius[i];
+            circles.push_back(circle);
+            count++;
+            cout << circle.x << "," << circle.y << "," << circle.r << endl;
+        }
+    }
 
-        vector<vec2d> alter_points;
-        int valid_insect = 0;
-        if (!insect1.empty())
+    vector<vec2d> alter_points;
+    int valid_insect = 0;
+    if (count >= 3) //一次三角质心
+    {
+        for (int i = 0; i < count; i++)
         {
-            alter_points.push_back(selectPoint(insect1, circle3));
-            valid_insect++;
+            for (int j = i + 1; j < count; j++)
+            {
+                vector<vec2d> points = insect(circles[i], circles[j]);
+                if (!points.empty() && points.size() == 1)
+                {
+                    alter_points.push_back(points[0]);
+                    valid_insect++;
+                }
+                else if (!points.empty())
+                {
+                    for (int k = 0; k < count; k++)
+                    {
+                        if (k == i || k == j)
+                        {
+                            continue;
+                        }
+                        alter_points.push_back(selectPoint(points, circles[k]));
+                        valid_insect++;
+                    }
+                }
+            }
         }
-        if (!insect2.empty())
-        {
-            alter_points.push_back(selectPoint(insect2, circle2));
-            valid_insect++;
-        }
-        if (!insect3.empty())
-        {
-            alter_points.push_back(selectPoint(insect3, circle1));
-            valid_insect++;
-        }
+
         if (alter_points.empty() || valid_insect == 0)
         {
             return last_result;
@@ -75,13 +86,6 @@ vec2d trilateration(const int *radius, const int count)
         last_result = result;
         return result;
     }
-    // else if (count == 4) //两次三角质心
-    // {
-    //     circle4.x = anchorArray[3].x;
-    //     circle4.y = anchorArray[3].y;
-    //     circle4.r = radius[3];
-    //     vec2d insect4[2];
-    // }
     else
     {
         cout << "基站个数异常" << endl;
@@ -160,9 +164,7 @@ vector<vec2d> insect(const Lcircle circle1, const Lcircle circle2)
         {
             result1.y = circle1.y - circle1.r * sin_value[0];
         }
-        result2 = result1;
         results.push_back(result1);
-        results.push_back(result2);
         return results;
     }
 
@@ -206,9 +208,10 @@ vector<vec2d> insect(const Lcircle circle1, const Lcircle circle2)
 vec2d optimizeByRatio(const vector<vec2d> points)
 {
     vec2d result;
+    int length = points.size();
     double avg_x, avg_y, sum_e_x, sum_e_y, sum_r_x, sum_r_y;
     avg_x = avg_y = sum_e_x = sum_e_y = sum_r_x = sum_r_y = 0;
-    for (int i = 0; i < points.size(); i++)
+    for (int i = 0; i < length; i++)
     {
         avg_x += points[i].x;
         avg_y += points[i].y;
@@ -217,11 +220,11 @@ vec2d optimizeByRatio(const vector<vec2d> points)
     avg_y /= points.size();
 
     //计算与平均值的差值
-    double error_x[points.size()] = {0};
-    double error_y[points.size()] = {0};
-    double ratio_x[points.size()] = {0};
-    double ratio_y[points.size()] = {0};
-    for (int i = 0; i < points.size(); i++)
+    double error_x[length] = {0};
+    double error_y[length] = {0};
+    double ratio_x[length] = {0};
+    double ratio_y[length] = {0};
+    for (int i = 0; i < length; i++)
     {
         error_x[i] = fabs(points[i].x - avg_x);
         error_y[i] = fabs(points[i].y - avg_y);
@@ -229,15 +232,23 @@ vec2d optimizeByRatio(const vector<vec2d> points)
         sum_e_y += error_y[i];
     }
 
-    for (int i = 0; i < points.size(); i++)
+    for (int i = 0; i < length; i++)
     {
+        if (ZERO == error_x[i])
+        {
+            error_x[i] = 0.001;
+        }
+        if (ZERO == error_x[i])
+        {
+            error_x[i] = 0.001;
+        }
         ratio_x[i] = sum_e_x / error_x[i];
         ratio_y[i] = sum_e_y / error_y[i];
         sum_r_x += ratio_x[i];
         sum_r_y += ratio_y[i];
     }
 
-    for (int i = 0; i < points.size(); i++)
+    for (int i = 0; i < length; i++)
     {
         result.x += points[i].x * ratio_x[i] / sum_r_x;
         result.y += points[i].y * ratio_y[i] / sum_r_y;

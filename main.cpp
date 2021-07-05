@@ -18,10 +18,11 @@ using namespace cv;
 
 pthread_t ntid_u;
 pthread_t ntid_v;
+pthread_t ntid_f;
 float zx[LENGTH] = {0};
 float zy[LENGTH] = {0};
 int dev;
-unsigned char buffer[MAX_BUFF_SIZE];
+unsigned char* buffer;
 VideoCapture cap(0);
 VisualData visual_result;
 vec2d uwb_result;
@@ -65,25 +66,28 @@ bool openCamera()
 void *getUWBData(void *data)
 {
     ssize_t nread;
+    buffer = new unsigned char[MAX_BUFF_SIZE];
     while (1)
     {
         nread = read(dev, buffer, MAX_BUFF_SIZE);
         if (nread != 0 && 'm' == buffer[0])
         {
             int offset = 0;
-            int radius[ANCHOR_NUM];
+            int *radius = new int[ANCHOR_NUM];
+            int *ids = new int[ANCHOR_NUM];
             switch (buffer[1])
             {
             case 'r': //原始测距数据
-                //print_hex(buffer, 16);
                 for (int i = 0; i < ANCHOR_NUM; i++)
                 {
-                    unsigned int dis = buffer[ANCHOR_DIS_START + offset + 1] << 8;
-                    dis = dis ^ buffer[ANCHOR_DIS_START + offset];
-                    offset = offset + 2;
+                    unsigned int id = buffer[ANCHOR_DIS_START + offset];
+                    ids[i] = id;
+                    unsigned int dis = buffer[ANCHOR_DIS_START + offset + 2] << 8;
+                    dis = dis ^ buffer[ANCHOR_DIS_START + offset + 1];
                     radius[i] = dis;
+                    offset = offset + 3;
                 }
-                uwb_result = trilateration(radius, ANCHOR_NUM);
+                uwb_result = trilateration(ids, radius);
                 break;
             case 'c': //校正后测距数据
                 break;
@@ -92,8 +96,11 @@ void *getUWBData(void *data)
             default:
                 break;
             }
+            delete radius;
+            delete ids;
         }
     }
+    delete buffer;
 }
 
 void *getVisulData(void *data)
@@ -155,8 +162,8 @@ int main()
     int err1, err2, err3, err4;
     err1 = pthread_create(&ntid_v, NULL, getVisulData, NULL);
     err2 = pthread_create(&ntid_u, NULL, getUWBData, NULL);
-    err3 = pthread_create(&ntid_u, NULL, getFusionDataX, NULL);
-    err4 = pthread_create(&ntid_u, NULL, getFusionDataY, NULL);
+    err3 = pthread_create(&ntid_f, NULL, getFusionDataX, NULL);
+    err4 = pthread_create(&ntid_f, NULL, getFusionDataY, NULL);
     if (err1 != 0)
     {
         cout << "visual thread creates fail" << endl;
@@ -183,6 +190,7 @@ int main()
 
     pthread_cancel(ntid_v);
     pthread_cancel(ntid_u);
+    pthread_cancel(ntid_f);
     //关闭串口
     close(dev);
     //释放摄像头

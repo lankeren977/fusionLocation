@@ -6,7 +6,6 @@
 using namespace std;
 using namespace cv;
 
-
 typedef struct Landmark Landmark;
 struct Landmark
 {

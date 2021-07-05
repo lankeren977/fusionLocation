@@ -13,7 +13,6 @@
 #define FALSE 0
 #define UART_DEVICE "/dev/ttyUSB0"
 #define SPEED 115200
-#define MAX_BUFF_SIZE 16
 
 int OpenDev(void);
 void set_speed(int fd, int speed);

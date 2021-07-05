@@ -11,6 +11,7 @@ float realSideLength; //实际路标边长
 int dim;              //路标维度
 double e;             //圆心确认误差范围
 float MIN_MAX_DIS;    //最长边最小值限定
+
 VisualData last_data;
 
 void loadVisualParams()
