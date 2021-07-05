@@ -74,20 +74,17 @@ void *getUWBData(void *data)
         {
             int offset = 0;
             int *radius = new int[ANCHOR_NUM];
-            int *ids = new int[ANCHOR_NUM];
             switch (buffer[1])
             {
             case 'r': //原始测距数据
                 for (int i = 0; i < ANCHOR_NUM; i++)
                 {
-                    unsigned int id = buffer[ANCHOR_DIS_START + offset];
-                    ids[i] = id;
-                    unsigned int dis = buffer[ANCHOR_DIS_START + offset + 2] << 8;
-                    dis = dis ^ buffer[ANCHOR_DIS_START + offset + 1];
+                    unsigned int dis = buffer[ANCHOR_DIS_START + offset + 1] << 8;
+                    dis = dis ^ buffer[ANCHOR_DIS_START + offset];
                     radius[i] = dis;
-                    offset = offset + 3;
+                    offset = offset + 2;
                 }
-                uwb_result = trilateration(ids, radius);
+                uwb_result = trilateration(radius);
                 break;
             case 'c': //校正后测距数据
                 break;

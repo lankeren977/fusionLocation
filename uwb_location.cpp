@@ -15,7 +15,7 @@ void loadUWBParams()
 }
 
 //多球交汇原理
-vec2d trilateration(const int *ids, const int *radius)
+vec2d trilateration(const int *radius)
 {
     vec2d result;
     int count = 0;
@@ -24,16 +24,39 @@ vec2d trilateration(const int *ids, const int *radius)
     map<int, double *>::iterator iter;
     for (int i = 0; i < ANCHOR_NUM; i++)
     {
-        iter = globalAnchors.find(ids[i]);
-        if (iter != globalAnchors.end() && 0 != radius[i])
+        iter = globalAnchors.find(i);
+        if (iter != globalAnchors.end())
         {
-            Lcircle circle;
-            circle.x = iter->second[0];
-            circle.y = iter->second[1];
-            circle.r = radius[i];
-            circles.push_back(circle);
-            count++;
-            cout << circle.x << "," << circle.y << "," << circle.r << endl;
+            if (radius[i] > 0 && circles.size() < 4)
+            {
+                Lcircle circle;
+                circle.x = iter->second[0];
+                circle.y = iter->second[1];
+                circle.r = radius[i];
+                circles.push_back(circle);
+            }
+            else if (radius[i] > 0 && circles.size() >= 4)
+            {
+                int max_id = 0;
+                bool flag = 0;
+                for (int k = 0; k < circles.size(); k++)
+                {
+                    if (circles[k].r > radius[i])
+                    {
+                        flag = true;
+                        if (circles[k].r > circles[max_id].r)
+                        {
+                            max_id = k;
+                        }
+                    }
+                }
+                if (flag)
+                {
+                    circles[max_id].r = radius[i];
+                    circles[max_id].x = iter->second[0];
+                    circles[max_id].y = iter->second[1];
+                }
+            }
         }
     }
 
