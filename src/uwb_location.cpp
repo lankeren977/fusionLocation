@@ -18,8 +18,7 @@ void loadUWBParams()
 vec2d trilateration(const int *radius)
 {
     vec2d result;
-    int count = 0;
-    //初始化圆
+    //初始化圆,筛选最近的四个基站
     vector<Lcircle> circles;
     map<int, double *>::iterator iter;
     for (int i = 0; i < ANCHOR_NUM; i++)
@@ -60,6 +59,13 @@ vec2d trilateration(const int *radius)
         }
     }
 
+    int count = circles.size();
+    /*//打印距离信息
+    for (Lcircle cir : circles)
+    {
+        cout << cir.r << ":" << cir.x << "," << cir.y << endl;
+    }*/
+
     vector<vec2d> alter_points;
     int valid_insect = 0;
     if (count >= 3) //一次三角质心
@@ -84,6 +90,7 @@ vec2d trilateration(const int *radius)
                         }
                         alter_points.push_back(selectPoint(points, circles[k]));
                         valid_insect++;
+                        break;
                     }
                 }
             }
@@ -119,112 +126,105 @@ vec2d trilateration(const int *radius)
 //确定备选三角顶点
 vec2d selectPoint(const vector<vec2d> points, const Lcircle circle)
 {
-    vec2d alter_point;
-    if (!isOutsideCircle(points[0], circle))
-    {
-        alter_point = points[0];
-    }
-    else if (!isOutsideCircle(points[1], circle))
-    {
-        alter_point = points[1];
-    }
-    else
-    {
-        double p1_dis_sqr = pow(points[0].x - circle.x, 2) + pow(points[0].y - circle.y, 2);
-        double p2_dis_sqr = pow(points[1].x - circle.x, 2) + pow(points[1].y - circle.y, 2);
-        alter_point = (p1_dis_sqr <= p2_dis_sqr) ? points[0] : points[1];
-    }
-    return alter_point;
-}
-
-//判断一点是否在圆外
-bool isOutsideCircle(const vec2d point, const Lcircle circle)
-{
-    double dis_sqr = pow(point.x - circle.x, 2) + pow(point.y - circle.y, 2);
-    return (dis_sqr > circle.y * circle.y) ? true : false;
+    //求一个在第三个圆边界附近的点
+    double p0_dis = sqrt(pow(points[0].x - circle.x, 2) + pow(points[0].y - circle.y, 2));
+    double p1_dis = sqrt(pow(points[1].x - circle.x, 2) + pow(points[1].y - circle.y, 2));
+    return (fabs(p0_dis - circle.r) <= (fabs(p1_dis - circle.r))) ? points[0] : points[1];
 }
 
 //两圆求交点
 vector<vec2d> insect(const Lcircle circle1, const Lcircle circle2)
 {
     vector<vec2d> results;
-    double dis, a, b, c, p, q, r;
-    double cos_value[2], sin_value[2];
-
+    double x1 = circle1.x;
+    double y1 = circle1.y;
+    double r1 = circle1.r;
+    double x2 = circle2.x;
+    double y2 = circle2.y;
+    double r2 = circle2.r;
     //判断是否内含或外离
-    dis = sqrt(pow(circle1.x - circle2.x, 2) + pow(circle1.y - circle2.y, 2));
-    if (dis < fabs(circle1.r - circle2.r) || dis > circle1.r + circle2.r)
+    double dis = sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
+    if (dis < fabs(r1 - r2) || dis > r1 + r2)
     {
         cout << "两圆没有交点" << endl;
+        r1 += 5;
+        r2 += 5;
         return results;
     }
     //一个内交点为异常
-    if (dis == fabs(circle1.r - circle2.r))
+    if (dis == fabs(r1 - r2))
     {
         cout << "两圆有一个内交点" << endl;
         return results;
     }
 
     vec2d result1, result2;
-    //初始化参数
-    a = 2 * circle1.r * (circle1.x - circle2.x);
-    b = 2 * circle1.r * (circle1.y - circle2.y);
-    c = pow(circle2.r, 2) - pow(circle1.r, 2) - pow(circle1.x - circle2.x, 2) - pow(circle1.y - circle2.y, 2);
-    p = a * a + b * b;
-    q = -2 * a * c;
-    r = c * c - b * b;
-
-    //如果只有一个外交点
-    if (fabs(dis - (circle1.r + circle2.r)) < ZERO)
+    double a, b, c;
+    double delta = -1;
+    if (y1 != y2)
     {
-        cos_value[0] = -q / p / 2;
-        sin_value[0] = sqrt(1 - pow(cos_value[0], 2));
+        double A = (x1 * x1 - x2 * x2 + y1 * y1 - y2 * y2 + r2 * r2 - r1 * r1) / (2 * (y1 - y2));
+        double B = (x1 - x2) / (y1 - y2);
+        a = 1 + B * B;
+        b = -2 * (x1 + (A - y1) * B);
+        c = x1 * x1 + (A - y1) * (A - y1) - r1 * r1;
 
-        result1.x = circle1.x + circle1.r * cos_value[0];
-        result1.y = circle1.y + circle1.r * sin_value[0];
-        //验证sin正负
-        if (pow(result1.x - circle2.x, 2) + pow(result1.y - circle2.y, 2) - pow(circle2.r, 2) > ZERO)
+        delta = b * b - 4 * a * c;
+        if (delta > 0)
         {
-            result1.y = circle1.y - circle1.r * sin_value[0];
+            result1.x = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+            result2.x = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+            result1.y = A - B * result1.x;
+            result2.y = A - B * result2.x;
+            results.push_back(result1);
+            results.push_back(result2);
+            return results;
         }
-        results.push_back(result1);
-        return results;
-    }
-
-    //如果有两个交点
-    cos_value[0] = (sqrt(q * q - 4 * p * r) - q) / p / 2;
-    cos_value[1] = (-sqrt(q * q - 4 * p * r) - q) / p / 2;
-    sin_value[0] = sqrt(1 - pow(cos_value[0], 2));
-    sin_value[1] = sqrt(1 - pow(cos_value[1], 2));
-
-    result1.x = circle1.x + circle1.r * cos_value[0];
-    result2.x = circle1.x + circle1.r * cos_value[1];
-    result1.y = circle1.y + circle1.r * sin_value[0];
-    result2.y = circle1.y + circle1.r * sin_value[1];
-    //验证解
-    if (pow(result1.x - circle2.x, 2) + pow(result1.y - circle2.y, 2) - pow(circle2.r, 2) > ZERO)
-    {
-        result1.y = circle1.y - circle1.r * sin_value[0];
-    }
-    if (pow(result2.x - circle2.x, 2) + pow(result2.y - circle2.y, 2) - pow(circle2.r, 2) > ZERO)
-    {
-        result2.y = circle1.y - circle1.r * sin_value[1];
-    }
-    //一种特殊情况当已经确定有两个不同的交点，但解出来的cos值只有一个，则sin值必定一正一负
-    if (fabs(result1.x - result2.x) < ZERO && fabs(result1.y - result2.y) < ZERO)
-    {
-        if (result1.y > 0)
+        else if (delta == 0)
         {
-            result2.y = -result2.y;
+            result1.x = -b / (2 * a);
+            result1.y = A - B * result1.x;
+            results.push_back(result1);
+            return results;
         }
         else
         {
-            result1.y = -result1.y;
+            cout << "无解1" << endl;
+            return results;
         }
     }
-    results.push_back(result1);
-    results.push_back(result2);
-    return results;
+    else if (x1 != x2)
+    {
+        result1.x = result2.x = (x1 * x1 - x2 * x2 + r2 * r2 - r1 * r1) / (2 * (x1 - x2));
+        a = 1;
+        b = -2 * y1;
+        c = y1 * y1 - r1 * r1 + (x1 - result1.x) * (x1 - result1.x);
+        delta = b * b - 4 * a * c;
+        if (delta > 0)
+        {
+            result1.y = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+            result2.y = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+            results.push_back(result1);
+            results.push_back(result2);
+            return results;
+        }
+        else if (delta == 0)
+        {
+            result1.y = -b / (2 * a);
+            results.push_back(result1);
+            return results;
+        }
+        else
+        {
+            cout << "无解2" << endl;
+            return results;
+        }
+    }
+    else
+    {
+        cout << "无解3" << endl;
+        return results;
+    }
 }
 
 //三角质心优化---改为误差加权平均优化

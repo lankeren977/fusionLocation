@@ -29,7 +29,6 @@ struct Lcircle
 void loadUWBParams();
 vec2d trilateration(const int *radius);
 vec2d selectPoint(const vector<vec2d> points,const Lcircle circle);
-bool isOutsideCircle(const vec2d point, const Lcircle circle);
 vector<vec2d> insect(const Lcircle circle1, const Lcircle circle2);
 vec2d optimizeByRatio(const vector<vec2d> points);
 

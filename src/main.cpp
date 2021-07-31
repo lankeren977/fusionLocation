@@ -9,8 +9,6 @@
 #include "uwb_location.h"
 #include "load_config.h"
 #include "visual_location.h"
-#include "kalman.h"
-#include "kalmany.h"
 
 using namespace std;
 using namespace cv;
@@ -19,8 +17,6 @@ using namespace cv;
 pthread_t ntid_u;
 pthread_t ntid_v;
 pthread_t ntid_f;
-float zx[LENGTH] = {0};
-float zy[LENGTH] = {0};
 int dev;
 unsigned char* buffer;
 VideoCapture cap(0);
@@ -94,7 +90,6 @@ void *getUWBData(void *data)
                 break;
             }
             delete radius;
-            delete ids;
         }
     }
     delete buffer;
@@ -116,23 +111,11 @@ void *getVisulData(void *data)
     }
 }
 
-void *getFusionDataX(void *data)
+void *getFusionData(void *data)
 {
     while (1)
     {
-        KalMan_Parmset(visual_result.visual_x);
-        zx[0] = uwb_result.x;
-        fusion_result.x = KalMan_Update(zx);
-    }
-}
-
-void *getFusionDataY(void *data)
-{
-    while (1)
-    {
-        KalMan_Parmsety(visual_result.visual_y);
-        zy[0] = uwb_result.y;
-        fusion_result.y = KalMan_Updatey(zy);
+       
     }
 }
 
@@ -140,7 +123,7 @@ void *getFusionDataY(void *data)
 int main()
 {
     ofstream outFile;
-    outFile.open("./output/data.csv", ios::out); // 打开模式可省略
+    outFile.open("../output/data.csv", ios::out); // 打开模式可省略
 
     //打开
     if (!openSerial() || !openCamera())
@@ -156,11 +139,10 @@ int main()
 
     clock_t startTime, endTime;
 
-    int err1, err2, err3, err4;
+    int err1, err2, err3;
     err1 = pthread_create(&ntid_v, NULL, getVisulData, NULL);
     err2 = pthread_create(&ntid_u, NULL, getUWBData, NULL);
-    err3 = pthread_create(&ntid_f, NULL, getFusionDataX, NULL);
-    err4 = pthread_create(&ntid_f, NULL, getFusionDataY, NULL);
+    err3 = pthread_create(&ntid_f, NULL, getFusionData, NULL);
     if (err1 != 0)
     {
         cout << "visual thread creates fail" << endl;
@@ -171,11 +153,7 @@ int main()
     }
     if (err3 != 0)
     {
-        cout << "fux thread creates fail" << endl;
-    }
-    if (err4 != 0)
-    {
-        cout << "fuy thread creates fail" << endl;
+        cout << "fusion thread creates fail" << endl;
     }
 
     while (1)
@@ -195,46 +173,3 @@ int main()
 
     return 0;
 }
-
-/*
-int main()
-{
-    KalMan_PramInit();
-    ifstream fin("/home/linux/Desktop/data/data10.csv"); //打开文件流操作
-    string line;
-    float z[1];
-    ofstream outFile;
-    outFile.open("/home/linux/Desktop/data/new_data11.csv", ios::out); // 打开模式可省略
-    while (getline(fin, line))                                  //整行读取，换行符“\n”区分，遇到文件尾标志eof终止读取
-    {
-        istringstream sin(line); //将整行字符串line读入到字符串流istringstream中
-        vector<string> fields;   //声明一个字符串向量
-        string field;
-        while (getline(sin, field, ',')) //将字符串流sin中的字符读入到field字符串中，以逗号为分隔符
-        {
-            fields.push_back(field); //将刚刚读取的字符串添加到向量fields中
-        }
-        string v_x = fields[0]; //清除掉向量fields中第一个元素的无效字符，并赋值给变量name
-        string v_y = fields[1];
-        string u_x = fields[2]; //清除掉向量fields中第一个元素的无效字符，并赋值给变量name
-        string u_y = fields[3];
-
-        float new_v_x = atof(v_x.c_str());
-        float new_v_y = atof(v_y.c_str());
-        float new_u_x = atof(u_x.c_str());
-        float new_u_y = atof(u_y.c_str());
-
-        KalMan_Parmset(new_v_y);
-        z[0] = new_u_y;
-        outFile << setiosflags(ios::fixed) << setprecision(2) << KalMan_Update(z) << endl;
-
-        // z[0] = new_v_y;
-        // new_v_y = KalMan_Update(z);
-        // z[0] = new_u_x;
-        // new_u_x = KalMan_Update(z);
-        // z[0] = new_u_y;
-        // new_u_y = KalMan_Update(z);
-        // outFile << setiosflags(ios::fixed) << setprecision(2) << new_v_x << "," << new_v_y << "," << new_u_x << "," << new_u_y << endl;
-    }
-    return 0;
-}*/

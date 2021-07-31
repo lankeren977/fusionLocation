@@ -9,24 +9,8 @@ int speed_arr[] = {
     B2400,
     B1200,
     B300,
-    B115200,
-    B38400,
-    B19200,
-    B9600,
-    B4800,
-    B2400,
-    B1200,
-    B300,
 };
 int name_arr[] = {
-    115200,
-    38400,
-    19200,
-    9600,
-    4800,
-    2400,
-    1200,
-    300,
     115200,
     38400,
     19200,
@@ -156,7 +140,7 @@ int set_Parity(int fd, int databits, int stopbits, int parity)
 //打开串口
 int OpenDev()
 {
-    int dev = open(UART_DEVICE, O_RDWR | O_NOCTTY | O_NONBLOCK); //设定为串口的设备描述符
+    int dev = open(UART_DEVICE, O_RDWR | O_NOCTTY ); //设定为串口的设备描述符
     if (dev < 0)
     {
         return -1;
