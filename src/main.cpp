@@ -104,9 +104,9 @@ void *getVisulData(void *data)
         if (!srcImage.empty())
         {
             visual_result = getVisualLocalizeData(srcImage);
-            namedWindow("show", WINDOW_NORMAL);
-            imshow("show", srcImage);
-            waitKey(20);
+            //namedWindow("show", WINDOW_NORMAL);
+            //imshow("show", srcImage);
+            //waitKey(20);
         }
     }
 }
@@ -158,8 +158,8 @@ int main()
 
     while (1)
     {
-        cout << setiosflags(ios::fixed) << setprecision(2) << visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
-        outFile << setiosflags(ios::fixed) << setprecision(2) << visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
+        cout << setiosflags(ios::fixed) << setprecision(2) <<  visual_result.visual_theta << "," << visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
+        outFile << setiosflags(ios::fixed) << setprecision(2) << visual_result.visual_theta << "," <<visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 

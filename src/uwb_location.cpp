@@ -4,67 +4,113 @@
 int ANCHOR_NUM;
 int ANCHOR_DIS_START;
 int MAX_BUFF_SIZE;
+int *LAST_RANGES;
+int *ANCHOR_STATE;
+double THREADHOLD;
+vector<vec2d> ANCHORS;
+bool INIT_FLAG;
+
 
 vec2d last_result;
 
 void loadUWBParams()
 {
+    INIT_FLAG = true;
     ANCHOR_NUM = getParam("ANCHOR_NUM");
     ANCHOR_DIS_START = getParam("ANCHOR_DIS_START");
     MAX_BUFF_SIZE = getParam("MAX_BUFF_SIZE");
+    THREADHOLD = getParam("THREADHOLD");
+    LAST_RANGES = new int[ANCHOR_NUM];
+    ANCHOR_STATE = new int[ANCHOR_NUM];
+    //加载基站坐标
+    map<int, double *>::iterator iter;
+    for(int i = 0; i < ANCHOR_NUM; i++){
+        iter = globalAnchors.find(i);
+        if (iter != globalAnchors.end()){
+            vec2d anchor;
+            anchor.x = iter->second[0];
+            anchor.y = iter->second[1];
+            ANCHORS.push_back(anchor);
+        }
+    }
 }
 
 //多球交汇原理
 vec2d trilateration(const int *radius)
 {
     vec2d result;
-    //初始化圆,筛选最近的四个基站
     vector<Lcircle> circles;
     map<int, double *>::iterator iter;
-    for (int i = 0; i < ANCHOR_NUM; i++)
-    {
-        iter = globalAnchors.find(i);
-        if (iter != globalAnchors.end())
-        {
-            if (radius[i] > 0 && circles.size() < 4)
-            {
+    double *nlos_ranges = new double[ANCHOR_NUM];
+    int index = 0;
+    //比较测距信息，判断NLOS状态
+    if(INIT_FLAG){
+        for(int i = 0;i < ANCHOR_NUM; i++){
+            if(radius[i] > 0){
+                LAST_RANGES[i] = radius[i];
                 Lcircle circle;
-                circle.x = iter->second[0];
-                circle.y = iter->second[1];
+                circle.x = ANCHORS[i].x;
+                circle.y = ANCHORS[i].y;
                 circle.r = radius[i];
                 circles.push_back(circle);
             }
-            else if (radius[i] > 0 && circles.size() >= 4)
-            {
-                int max_id = 0;
-                bool flag = 0;
-                for (int k = 0; k < circles.size(); k++)
-                {
-                    if (circles[k].r > radius[i])
-                    {
-                        flag = true;
-                        if (circles[k].r > circles[max_id].r)
-                        {
-                            max_id = k;
-                        }
-                    }
-                }
-                if (flag)
-                {
-                    circles[max_id].r = radius[i];
-                    circles[max_id].x = iter->second[0];
-                    circles[max_id].y = iter->second[1];
+        }
+        INIT_FLAG = false;
+    }else{
+        for(int i = 0;i < ANCHOR_NUM; i++){
+            if(radius[i] > 0){
+                double delta = radius[i] - LAST_RANGES[i];
+                LAST_RANGES[i] = radius[i];
+                if(0 == ANCHOR_STATE[i] && delta > THREADHOLD){
+                    ANCHOR_STATE[i] = 1;
+                }else if(0 == ANCHOR_STATE[i]){
+                    Lcircle circle;
+                    circle.x = ANCHORS[i].x;
+                    circle.y = ANCHORS[i].y;
+                    circle.r = radius[i];
+                    circles.push_back(circle);
+                }else if(1 == ANCHOR_STATE[i] && delta < 0 && fabs(delta) > THREADHOLD){
+                    ANCHOR_STATE[i] = 0;
+                    Lcircle circle;
+                    circle.x = ANCHORS[i].x;
+                    circle.y = ANCHORS[i].y;
+                    circle.r = radius[i];
+                    circles.push_back(circle);
+                }else{
+                    nlos_ranges[index++] = radius[i];
                 }
             }
         }
+        //补位测距最短的NLOS基站
+        int lack_num = 3 - circles.size();
+        if (lack_num > 0){
+             //冒泡排序
+            for(int i = 0; i < index ;i++){
+                for(int j = 0;j < index - i; j++){
+                    if(nlos_ranges[j] > nlos_ranges[j+1]){
+                        double temp = nlos_ranges[j];
+                        nlos_ranges[j] = nlos_ranges[j+1];
+                        nlos_ranges[j+1] = temp;
+                    }
+                }
+            }
+            for(int i = 0; i < lack_num ; i++){
+                for(int j = 0;j < ANCHOR_NUM; j++){
+                    if(nlos_ranges[i] == radius[j] && ANCHOR_STATE[j] == 1){
+                        Lcircle circle;
+                        circle.x = ANCHORS[j].x;
+                        circle.y = ANCHORS[j].y;
+                        circle.r = radius[j];
+                        circles.push_back(circle);
+                        break;
+                    }
+                }
+            }
+        }
+        delete nlos_ranges;
     }
-
+    
     int count = circles.size();
-    /*//打印距离信息
-    for (Lcircle cir : circles)
-    {
-        cout << cir.r << ":" << cir.x << "," << cir.y << endl;
-    }*/
 
     vector<vec2d> alter_points;
     int valid_insect = 0;
