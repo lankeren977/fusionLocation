@@ -19,6 +19,7 @@ pthread_t ntid_v;
 pthread_t ntid_f;
 int dev;
 unsigned char* buffer;
+int *radius;
 VideoCapture cap(0);
 VisualData visual_result;
 vec2d uwb_result;
@@ -63,13 +64,13 @@ void *getUWBData(void *data)
 {
     ssize_t nread;
     buffer = new unsigned char[MAX_BUFF_SIZE];
+    radius = new int[ANCHOR_NUM];
     while (1)
     {
         nread = read(dev, buffer, MAX_BUFF_SIZE);
         if (nread != 0 && 'm' == buffer[0])
         {
             int offset = 0;
-            int *radius = new int[ANCHOR_NUM];
             switch (buffer[1])
             {
             case 'r': //原始测距数据
@@ -89,9 +90,9 @@ void *getUWBData(void *data)
             default:
                 break;
             }
-            delete radius;
         }
     }
+    delete radius;
     delete buffer;
 }
 
@@ -142,7 +143,7 @@ int main()
     int err1, err2, err3;
     err1 = pthread_create(&ntid_v, NULL, getVisulData, NULL);
     err2 = pthread_create(&ntid_u, NULL, getUWBData, NULL);
-    err3 = pthread_create(&ntid_f, NULL, getFusionData, NULL);
+    //err3 = pthread_create(&ntid_f, NULL, getFusionData, NULL);
     if (err1 != 0)
     {
         cout << "visual thread creates fail" << endl;
@@ -151,21 +152,21 @@ int main()
     {
         cout << "uwb thread creates fail" << endl;
     }
-    if (err3 != 0)
+    /*if (err3 != 0)
     {
         cout << "fusion thread creates fail" << endl;
-    }
+    }*/
 
     while (1)
     {
-        cout << setiosflags(ios::fixed) << setprecision(2) <<  visual_result.visual_theta << "," << visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
-        outFile << setiosflags(ios::fixed) << setprecision(2) << visual_result.visual_theta << "," <<visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y << "," << fusion_result.x << "," << fusion_result.y << endl;
+        cout << setiosflags(ios::fixed) << setprecision(2) <<  visual_result.visual_theta << "," << visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y <<","<< radius[0] <<","<< radius [1] <<","<< radius[2] <<","<< radius[3] << endl;
+        outFile << setiosflags(ios::fixed) << setprecision(2) << visual_result.visual_theta << "," <<visual_result.visual_x << "," << visual_result.visual_y << "," << uwb_result.x << "," << uwb_result.y <<","<< radius[0] <<","<< radius [1] <<","<< radius[2] <<","<< radius[3]<<  endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     pthread_cancel(ntid_v);
     pthread_cancel(ntid_u);
-    pthread_cancel(ntid_f);
+    //pthread_cancel(ntid_f);
     //关闭串口
     close(dev);
     //释放摄像头
